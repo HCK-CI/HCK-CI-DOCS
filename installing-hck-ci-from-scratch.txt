@@ -1,0 +1,232 @@
+Installing hck-ci from scratch
+------------------------------
+
+Install the server
+--------------------
+1. Start by installing a [Fedora server](https://getfedora.org) edition and following checklist for new server in installing-hck-ci-from-scratch.txt
+
+2. To prevent possible issues with the ping command used by AutoHCK the follwing to your `.bashrc` file:
+```
+export LC_ALL="en_US.UTF-8"
+```
+
+3. AutoHCK will need to run sudo command without password, add the following line to the end of the file /etc/sudoers:
+```
+hck-ci ALL=(ALL) NOPASSWD:ALL
+```
+
+Configure Jenkins
+-----------------
+1. Start and enable libvirt:
+
+* Add your user to the libvirt group: usermod --append --groups libvirt `whoami`
+
+* Start and enable libvirt service: sudo systemctl enable libvirtd --now
+
+2. Start and enable docker service: sudo systemctl enable docker --now
+
+3. Add permission to the docker socket: sudo chmod 666 /var/run/docker.sock
+
+4. create a dockerfile to install libvirt client on jenkins image (vi jenkins.dockerfile):
+
+vi jenkins.dockerfile
+
+```
+FROM jenkins/jenkins:lts
+USER root
+RUN apt-get update && apt-get install -y libvirt-clients libvirt-daemon-system
+USER jenkins
+```
+5. Build the docker image: docker build . -t hck-ci/jenkins -f jenkins.dockerfile
+
+6. Run docker container (including restart option): docker run -d --restart unless-stopped -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home hck-ci/jenkins
+
+7. Find the ID of your container: docker ps
+
+8. Create a SSH private key in the container: docker exec -it <containerid> ssh-keygen -t rsa
+
+9. Copy the public key from the container to the host authorized_keys:
+
+docker exec -it <containerid> ssh-copy-id -i /var/jenkins_home/.ssh/id_rsa.pub <username>@<host>
+
+If this doesn't work:
+cat /var/lib/docker/volumes/jenkins_home/_data/.ssh/id_rsa.pub
+vi ~/.ssh/authorized_keys
+
+Append the key to the end of file.
+
+You should connect from docker container to host as least once to accept the key:
+Run docker container (including restart option): docker run -it --entrypoint /bin/bash hck-ci/jenkins
+
+To test that ssh connection works, run Jenkins container in interactive mode and try to ssh to host (to stop running container use: docker stop <container ID>):
+docker run -it -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home --entrypoint /bin/bash hck-ci/jenkins
+ssh -l <host_username> <host> -i /var/jenkins_home/.ssh/id_rsa
+
+10. Open a browser with server address and allocated port eg http://myserverip:8080,
+use initial admin password printed on terminal to config jenkins, install all suggested plugins and create a user.
+
+11. Install 'Libvirt Slaves plugin' (Manage Jenkins -> Manage Plugins -> Available -> check "Libvirt Slaves" and click on "Install without restart" and after installation is finished, check "restart") in Jenkins and configure it as followed:
+
+12. Before copying the images check that there is enough space on the target volume. On automatically provisioned machines volume extension might be needed:
+
+# check the mappings
+df -h
+
+# for eaxmple on Fedora machine the following commands should be executed
+lvextend /dev/fedora/root -l+100%FREE
+xfs_growfs /
+
+13. Copy Windows build VM image to var/lib/libvirt/images/ (cp win8.1_x64.qcow2 /var/lib/libvirt/images/) on the host.
+
+14. Configure VNC connection for VM
+
+In  win8.1.xml change graphics element to include address property.
+For example (10.8.0.223 is the address to bind to):
+
+<graphics type='vnc' port='-1' autoport='yes' address='10.8.0.223'>
+      <listen type='address' address='10.8.0.223'/>
+</graphics>
+
+15. Defined the VM with visrsh:
+
+virsh define win8.1.xml
+
+16. Add new Slave to Jenkins as a libvirt node:
+
+Click on "Manage Jenkins" from side pannel -> "Configure System" -> Go to the bottom of the page and click on "Add a new cloud"
+
+Hypervisor Type - should be QEMU
+Hypervisor Host - your hostname
+Username - HCK CI user name on the host
+
+Click on "Advanced button" to configure connection with ssh key ->
+Put "1" in " Concurrent Slaves Capacity" field ->
+Click on "Add" button ->
+Choose "Jenkins" from drop down list ->
+In "Jenkins Credentials Provider: Jenkins" dialog ->
+Switch kind to "SSH Username with private key" ->
+Click on "From the Jenkins master ~/.ssh" radio button ->
+Put your host user name in "Username" field ->
+Click "Add" button ->
+Check that in "Native Credentials" drop down list there is your recently added credentials ->
+Click on "Test Connection" -> You should see something like "OK: qemu+ssh://username@host.com:22/system?no_tty=1, version=2010001" ->
+Click "Save" button
+
+17. Click on "Build Executor Status" from left pannel ->
+Click on "New node from left pannel ->
+Choose "Slave virtual computer running on a virtualization platform (via libvirt)", give a name to slave (win8.1._build_vm) and click "OK" ->
+Due to the bug in libvirt plugin it will not load VM list first time, so save the configuration ->
+Go to list of "Build executer status" again and click configure icon of need executor ->
+Set following settings:
+* Virtual Machine - choose our build VM on the host
+* Remote FS root- set to c:\
+* Usage - set to "Only build jobs with label expressions matching this node"
+* Availability - "Take this agent online when in demend, and offline when idle", set delays to 1
+
+
+18. Run slave VM: virsh start win8.1
+
+In order to connect to slave VM with VNC, create SSH tunneling (port forwarding) on your machine:
+ssh <username@vremotehost> -L <local VNC port, better use 5900>:<remote IP>:<remote port, probably 5900>
+
+Example:
+ssh root@virtlab1001.lab.eng.rdu2.redhat.com -L 5900:10.8.0.103:5900
+
+19. Inside the slave VM download the slave agent: ```http://myserverip:8080/computer/win8.1_build_vm/slave-agent.jnlp``` (if you used name other than win8.1._build_vm - use it in URL)
+* Make sure you can access the jenkins dasboard from hostname, if you can't you must change it in the jenkins configuration to the real ip before you download
+
+* Delete XML elements "workdir" and "internaldir"
+
+* Configure Java security settings. Run Java configuration.
+
+Go to "Advanced" tab:
+
+ * JNLP File/MIME Association - Always allow
+
+ * Secure Execution Environment - Uncheck Show sandbox warning banner, uncheck warn if site certificate does not match hostname, uncheck show site certificate from server even if it is valid
+
+ * Mixed code - Disable verification
+
+ * Perform certificate revocation checks on - Do not check
+
+ * Advanced Security Settings - Uncheck enable blacklist revocation check
+
+Go to "Security" tab:
+ * Add the site to Security tab > edit site list > add button > type URL or IP.
+
+
+* Run the file as administrator with javaws slave-agen.jnlp
+
+* Install as a service: "File" > "Install as a service"
+
+In case service already exists, stop and delete it first:
+
+sc stop jenkinsslave-c__
+sc delete jenkinsslave-c__
+
+20. Install following plugins ("Manage" -> "Manage plugins" -> "Available":
+
+* Copy artifacts
+
+* Parameterized Trigger
+
+21. Add another slave node (for the host):
+
+"Build Executor Status" ->
+"New node" -> Check "Permanent Agent" and use "Node name" - "linux_host" ->Click "OK" ->
+Select from "Usage" check list "Only build jobs with label expressions matching this node" ->
+Change "# of executors" to "2" ->
+Select from "Launch method" check list "Launch slave agents via SSH" and select credentials (should be already configured) -> "Click save"
+
+22. Copy configuration file (config.xml) for VirtIO drivers build.
+
+* Create job "VirtIO" (freestyle project) and then save empty job.
+
+* Copy configurastion from hck-ci-jenkins-config/jobs/VirtIO config.xml to /var/lib/docker/volumes/jenkins_home/_data/jobs/VirtIO
+
+* Restart Jenkins with <your_host_name>:<your_port>/safeRestart
+
+* Go to "Configure" page of the VirtIO job: change "Label Expression" to your VM (win8.1_build_VM)
+
+
+Configuring the Github hooks/triggers
+----------------------------
+
+GitHub Pull Request Builder
+-----------------------------
+Install 'GitHub Pull Request Builder' (Manage Jenkins -> Manage Plugins -> Available -> check "GitHub Pull Request Builder" and click on "Install without restart" and after installation is finished, check "restart") in Jenkins and configure it as followed:
+
+Setup Pull request trigger configuration
+
+* Go to 'Manage Jenkins' on the left menu and then 'Configure System'
+* Scroll down to 'GitHub Pull Request Builder'
+* Add a new credentials, use a token created at github or create a new one at: https://github.com/settings/tokens, add a description to the credential to identify it as the github access token.
+* Select it from the credential list and apply changes.
+
+Setup Pull request trigger for project
+
+* Click in the build job name on the main page of Jenkins (VirtIO)
+
+* Click in "Configure" in the left panel
+
+* Click on the  'Source Code Management' tab
+
+* On the advanced section change 'Refspec' to "+refs/pull/*:refs/remotes/origin/pr/*"
+
+* Below that change the 'Branch Specifier' to "${sha1}"
+
+* Click on the "Build triggers" tab
+
+* Check 'GitHub Pull Request Builder'
+
+* Click advanced, then mark the checkbox on 'Build every pull request automatically without asking (Dangerous!).'
+
+* Below that on 'Trigger Setup' add 'Update commit status during build' and 'Build Status Messages' to make a custom text to show on github when updating.
+
+Storage related devices tests
+-----------------------------
+Some devices has tests that requires to create additional partitions:
+https://docs.microsoft.com/en-us/windows-hardware/test/hlk/testref/file-system-testing-prerequisites
+
+* Extract the filesystem_wests_image.qcow2.zip file into the VirtHCK images folder to make VirtHCK load these partitions automatically.
+* You can create it your own by following this: https://github.com/daynix/VirtHCK/tree/master/guest_tools/StorageAutoPartition

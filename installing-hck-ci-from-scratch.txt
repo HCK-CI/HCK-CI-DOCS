@@ -228,5 +228,6 @@ Storage related devices tests
 Some devices has tests that requires to create additional partitions:
 https://docs.microsoft.com/en-us/windows-hardware/test/hlk/testref/file-system-testing-prerequisites
 
-* Extract the filesystem_wests_image.qcow2.zip file into the VirtHCK images folder to make VirtHCK load these partitions automatically.
+* Extract the filesystem_tests_image.qcow2.zip file into the VirtHCK images folder to make VirtHCK load these partitions automatically.
 * You can create it your own by following this: https://github.com/daynix/VirtHCK/tree/master/guest_tools/StorageAutoPartition
+* This might not always work since the drive letter assignment is saved within windows files, in such cases you will need to assign the letters manually before testing such devices.

@@ -5,12 +5,7 @@ Install the server
 --------------------
 1. Start by installing a [Fedora server](https://getfedora.org) edition and following checklist for new server in installing-hck-ci-from-scratch.txt
 
-2. To prevent possible issues with the ping command used by AutoHCK the follwing to your `.bashrc` file:
-```
-export LC_ALL="en_US.UTF-8"
-```
-
-3. AutoHCK will need to run sudo command without password, add the following line to the end of the file /etc/sudoers:
+2. AutoHCK will need to run sudo command without password, add the following line to the end of the file /etc/sudoers:
 ```
 hck-ci ALL=(ALL) NOPASSWD:ALL
 ```

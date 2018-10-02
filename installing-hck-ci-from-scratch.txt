@@ -182,9 +182,6 @@ Configure Jenkins
 
     * Go to "Configure" page of the VirtIO job: change "Label Expression" to your VM (win8.1_build_VM)
 
-Configuring the Github hooks/triggers
-----------------------------
-
 GitHub Pull Request Builder
 -----------------------------
 Install 'GitHub Pull Request Builder' (Manage Jenkins -> Manage Plugins -> Available -> check "GitHub Pull Request Builder" and click on "Install without restart" and after installation is finished, check "restart") in Jenkins and configure it as followed:

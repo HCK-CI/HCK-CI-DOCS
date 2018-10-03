@@ -3,12 +3,28 @@ Installing hck-ci from scratch
 
 Install the server
 --------------------
-1. Start by installing a [Fedora server](https://getfedora.org) edition and following checklist for new server in installing-hck-ci-from-scratch.txt
+Start by installing a [Fedora server](https://getfedora.org) edition and following checklist for new server in installing-hck-ci-from-scratch.txt
 
-2. AutoHCK will need to run sudo command without password, add the following line to the end of the file /etc/sudoers:
+Build QEMU
+----------
+Clone and bulid qemu from: https://github.com/qemu/qemu
+
 ```
-hck-ci ALL=(ALL) NOPASSWD:ALL
+mkdir build
+cd build
+../configure
+make
 ```
+
+Install Ruby
+------------
+Check that you have ruby installed on the host. Ruby installation instructions (better use RVM): https://rvm.io
+We tested on 2.4.3 and we assume it can work on later versions as well.
+
+Deploy AutoHCK
+--------------
+1. Get a copy of AutoHCK release package: https://github.com/HCK-CI/AutoHCK/releases
+2. Extract the archive and deploy AutoHCK according to the release notes: HCK_CI/release_notes.
 
 Configure Jenkins
 -----------------
@@ -181,27 +197,6 @@ Configure Jenkins
     * Restart Jenkins with <your_host_name>:<your_port>/safeRestart
 
     * Go to "Configure" page of the VirtIO job: change "Label Expression" to your VM (win8.1_build_VM)
-
-Build QEMU
-----------
-Clone and bulid qemu from: https://github.com/qemu/qemu
-
-```
-mkdir build
-cd build
-../configure
-make
-```
-
-Install Ruby
-------------
-Check that you have ruby installed on the host. Ruby installation instructions (better use RVM): https://rvm.io
-We tested on 2.4.3 and we assume it can work on later versions as well.
-
-Deploy AutoHCK
---------------
-1. Get a copy of AutoHCK release package: https://github.com/HCK-CI/AutoHCK/releases
-2. Extract the archive and deploy AutoHCK according to the release notes: HCK_CI/release_notes.
 
 GitHub Pull Request Builder
 -----------------------------

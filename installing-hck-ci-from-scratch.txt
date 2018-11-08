@@ -24,7 +24,9 @@ We tested on 2.4.3 and we assume it can work on later versions as well.
 Deploy AutoHCK
 --------------
 1. Get a copy of AutoHCK release package: https://github.com/HCK-CI/AutoHCK/releases
-2. Extract the archive and deploy AutoHCK according to the release notes: HCK_CI/release_notes.
+2. Extract the archive, and read the package release notes.
+4. Edit optional configuration according to the release notes.
+3. Run `./install.sh` in the release package
 
 Configure Jenkins
 -----------------
@@ -51,59 +53,55 @@ Configure Jenkins
 
 5. Build the docker image: docker build . -t hck-ci/jenkins -f jenkins.dockerfile
 
-6. Run docker container (including restart option): docker run -d --restart unless-stopped -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home hck-ci/jenkins
+6. Run docker container (detached with auto restart): 
+   docker run -d --restart unless-stopped -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home hck-ci/jenkins
+   
+7. Find the container id: docker ps
 
-7. Find the ID of your container: docker ps
+8. Open a shell inside the container with: exec -i -t <container_id> /bin/bash
 
-8. Create a SSH private key in the container: docker exec -it <containerid> ssh-keygen -t rsa
+9. Create a new private key inside the container: ssh-keygen -t rsa
 
-9. Copy the public key from the container to the host authorized_keys:
+10. Copy the public key to the host: ssh-copy-id -i ~/.ssh/id_rsa user@host
+    * If you can't ssh the host detach from container and run:
+    cat /var/lib/docker/volumes/jenkins_home/_data/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+    
+11. Make sure you can SSH from container to host  and detach from container (ctrl-d):
+    ssh -l <host_username> <host> -i /var/jenkins_home/.ssh/id_rsa
 
-   docker exec -it <containerid> ssh-copy-id -i /var/jenkins_home/.ssh/id_rsa.pub <username>@<host>
+12. Open a browser with server address and allocated port eg http://myserverip:8080,
 
-   If this doesn't work:
-   cat /var/lib/docker/volumes/jenkins_home/_data/.ssh/id_rsa.pub
-   vi ~/.ssh/authorized_keys
+13. Use the initial password located at (from host): /var/lib/docker/volumes/jenkins_home/_data/secrets/initialAdminPassword to setup Jenkins.
 
-   Append the key to the end of file.
+14. Install following plugins ("Manage" -> "Manage plugins" -> "Available") And restart Jenkins when done :
+    * Libvirt Slaves plugin
+    * Copy artifacts
+    * Parameterized Trigger
+    * Github Pull Request Builder
+    * Rebuilder
 
-   You should connect from docker container to host as least once to accept the key:
-   Run docker container (including restart option): docker run -it --entrypoint /bin/bash hck-ci/jenkins
-
-   To test that ssh connection works, run Jenkins container in interactive mode and try to ssh to host (to stop running container use: docker stop <container ID>):
-   docker run -it -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home --entrypoint /bin/bash hck-ci/jenkins
-   ssh -l <host_username> <host> -i /var/jenkins_home/.ssh/id_rsa
-
-10. Open a browser with server address and allocated port eg http://myserverip:8080,
-    use initial admin password printed on terminal to config jenkins, install all suggested plugins and create a user.
-
-11. Install 'Libvirt Slaves plugin' (Manage Jenkins -> Manage Plugins -> Available -> check "Libvirt Slaves" and click on "Install without restart" and after installation is finished, check "restart") in Jenkins and configure it as followed:
-
-12. Before copying the images check that there is enough space on the target volume. On automatically provisioned machines volume extension might be needed:
-
-    # check the mappings
+15. Make sure the machine has enough free space allocated: (This is needed on automatically provisioned machines):
+    # check free space and mappings
     df -h
 
-    # for eaxmple on Fedora machine the following commands should be executed
+    # Extending can be done on fedora LVM partitioning with:
     lvextend /dev/fedora/root -l+100%FREE
     xfs_growfs /
 
-13. Copy Windows build VM image to var/lib/libvirt/images/ (cp win8.1_x64.qcow2 /var/lib/libvirt/images/) on the host.
+16. Copy your Windows drivers Build VM imagse to libvirt images dir located at: var/lib/libvirt/images
+    cp win8.1_x64.qcow2 /var/lib/libvirt/images
 
-14. Configure VNC connection for VM
+17. Defined the VM with visrsh xml file:
 
-    In win8.1.xml change graphics element to include address property.
-    For example (10.8.0.223 is the address to bind to):
+    Inside the XML file set the vnc port and use address 0.0.0.0 to make it available outside the machine:
 
-    <graphics type='vnc' port='-1' autoport='yes' address='10.8.0.223'>
-          <listen type='address' address='10.8.0.223'/>
+    <graphics type='vnc' port='0' autoport='yes' address='0.0.0.0'>
+          <listen type='address' address='0.0.0.0'/>
     </graphics>
 
-15. Defined the VM with visrsh:
+    run: virsh define win8.1.xml
 
-    virsh define win8.1.xml
-
-16. Add new Slave to Jenkins as a libvirt node:
+18. Add new Slave to Jenkins as a libvirt node (The will be the driver build vm slave):
 
     Click on "Manage Jenkins" from side pannel -> "Configure System" -> Go to the bottom of the page and click on "Add a new cloud"
 
@@ -124,29 +122,27 @@ Configure Jenkins
     Click on "Test Connection" -> You should see something like "OK: qemu+ssh://username@host.com:22/system?no_tty=1, version=2010001" ->
     Click "Save" button
 
-17. Click on "Build Executor Status" from left pannel ->
+19. Click on "Build Executor Status" from left pannel ->
     Click on "New node from left pannel ->
-    Choose "Slave virtual computer running on a virtualization platform (via libvirt)", give a name to slave (win8.1._build_vm) and click "OK" ->
-    Due to the bug in libvirt plugin it will not load VM list first time, so save the configuration ->
-    Go to list of "Build executer status" again and click configure icon of need executor ->
-    Set following settings:
-    * Virtual Machine - choose our build VM on the host
-    * Remote FS root- set to c:\
-    * Usage - set to "Only build jobs with label expressions matching this node"
+    Give the node a name: build_vm and select "Slave virtual computer..." and click "OK" ->
+    Fill the form as followed:
+    * Virtual Machine: --leave empty --
+    # of executors: 1
+    * Remote FS root: c:\
+    * Usage: Only build jobs with label expressions matching this node
+    * Secondary launch method: Launch agent via Java Web Start
     * Availability - "Take this agent online when in demend, and offline when idle", set delays to 1
+    -> save changes and go back to configure slave ("Build executer status" -> Configure) ->
+    Now your driver build vm will be available under "Virtual Machine".
+    Save changes again.
 
-18. Run slave VM: virsh start win8.1
+20. Connect to the build_vm with VNC client: <ipaddress>:< 5900 + the_defined_port >
 
-    In order to connect to slave VM with VNC, create SSH tunneling (port forwarding) on your machine:
-    ssh <username@vremotehost> -L <local VNC port, better use 5900>:<remote IP>:<remote port, probably 5900>
-
-    Example:
-    ssh root@virtlab1001.lab.eng.rdu2.redhat.com -L 5900:10.8.0.103:5900
-
-19. Inside the slave VM download the slave agent: ```http://myserverip:8080/computer/win8.1_build_vm/slave-agent.jnlp``` (if you used name other than win8.1._build_vm - use it in URL)
+21. Inside the slave VM download the slave agent: ```http://myserverip:8080/computer/build_vm/slave-agent.jnlp``` 
+    (change to the name used when configuring slave instead of build_vm)
     * Make sure you can access the jenkins dasboard from hostname, if you can't you must change it in the jenkins configuration to the real ip before you download
 
-    * Delete XML elements "workdir" and "internaldir"
+22. Edit the jnlp file with text editor, remove both XML tags: "workdir" and "internaldir" and save the file.
 
     * Configure Java security settings. Run Java configuration.
 
@@ -173,14 +169,11 @@ Configure Jenkins
 
     sc stop jenkinsslave-c__
     sc delete jenkinsslave-c__
+    
+23. Now turn of vm and make sure you can run it and launch agent directly from Jenkins:
+    Jenkins -> Build Excutor Status -> build_vm -> launch agent
 
-20. Install following plugins ("Manage" -> "Manage plugins" -> "Available":
-
-    * Copy artifacts
-
-    * Parameterized Trigger
-
-21. Add another slave node (for the host):
+24. Now we will add another slave for running AutoHCK tests
 
     "Build Executor Status" ->
     "New node" -> Check "Permanent Agent" and use "Node name" - "linux_host" ->Click "OK" ->
@@ -188,15 +181,12 @@ Configure Jenkins
     Change "# of executors" to "2" ->
     Select from "Launch method" check list "Launch slave agents via SSH" and select credentials (should be already configured) -> "Click save"
 
-22. Copy configuration file (config.xml) for VirtIO drivers build.
-
-    * Create job "VirtIO" (freestyle project) and then save empty job.
-
-    * Copy configurastion from hck-ci-jenkins-config/jobs/VirtIO config.xml to /var/lib/docker/volumes/jenkins_home/_data/jobs/VirtIO
-
-    * Restart Jenkins with <your_host_name>:<your_port>/safeRestart
-
-    * Go to "Configure" page of the VirtIO job: change "Label Expression" to your VM (win8.1_build_VM)
+25. Copy jobs all jobs from daynix/hck-ci-jenkins-config to /var/lib/docker/volumes/jenkins_home/_data/jobs/
+    * You will first have to match external jobs fils with your own AutoHCK path and slaves names.
+    * Open a shell inside the container again and make sure the jobs file are owend by Jenkins user
+    cd /var/jenkins_home/jobs
+    chown -R jenkins:jenkins *
+    * Load new jobs on jenkins with: Jenkins -> Manage Jenkins -> Reload Configuration from Disk
 
 GitHub Pull Request Builder
 -----------------------------

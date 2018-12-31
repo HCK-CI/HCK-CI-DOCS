@@ -115,7 +115,8 @@ Configure Jenkins
     Choose "Jenkins" from drop down list ->
     In "Jenkins Credentials Provider: Jenkins" dialog ->
     Switch kind to "SSH Username with private key" ->
-    Click on "From the Jenkins master ~/.ssh" radio button ->
+    Type the host Username->
+    Click on "Enter directly" and paste the private key you created in step 10 ->
     Put your host user name in "Username" field ->
     Click "Add" button ->
     Check that in "Native Credentials" drop down list there is your recently added credentials ->

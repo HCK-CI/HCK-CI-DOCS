@@ -58,7 +58,7 @@ Configure Jenkins
    
 7. Find the container id: docker ps
 
-8. Open a shell inside the container with: exec -i -t <container_id> /bin/bash
+8. Open a shell inside the container with: docker exec -i -t <container_id> /bin/bash
 
 9. Create a new private key inside the container: ssh-keygen -t rsa
 

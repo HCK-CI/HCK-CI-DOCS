@@ -132,6 +132,7 @@ Configure Jenkins
     * Remote FS root: c:\
     * Usage: Only build jobs with label expressions matching this node
     * Secondary launch method: Launch agent via Java Web Start
+    As of Jenkins version 2.176.3, there is option enabled when "Launch agent by connecting it to the master" which is same as "launch agent via java web start"
     * Availability - "Take this agent online when in demend, and offline when idle", set delays to 1
     -> save changes and go back to configure slave ("Build executer status" -> Configure) ->
     Now your driver build vm will be available under "Virtual Machine".

@@ -1,12 +1,11 @@
-Installing hck-ci from scratch
-------------------------------
+# Installing HCK-CI from scratch
 
-Install the server
---------------------
-Start by installing a [Fedora server](https://getfedora.org) edition and following checklist for new server in installing-hck-ci-from-scratch.txt
+## Install the server
 
-Build QEMU
-----------
+Start by installing a [Fedora server](https://getfedora.org) edition and following checklist for new server in server_installation.md
+
+## Build QEMU
+
 Clone and bulid qemu from: https://github.com/qemu/qemu
 
 ```
@@ -16,20 +15,20 @@ cd build
 make
 ```
 
-Install Ruby
-------------
+## Install Ruby
+
 Check that you have ruby installed on the host. Ruby installation instructions (better use RVM): https://rvm.io
 We tested on 2.4.3 and we assume it can work on later versions as well.
 
-Deploy AutoHCK
---------------
+## Deploy AutoHCK
+
 1. Get a copy of AutoHCK release package: https://github.com/HCK-CI/AutoHCK/releases
 2. Extract the archive, and read the package release notes.
 4. Edit optional configuration according to the release notes.
 3. Run `./install.sh` in the release package
 
-Configure Jenkins
------------------
+## Configure Jenkins
+
 1. Start and enable libvirt:
 
    * Add your user to the libvirt group: usermod --append --groups libvirt `whoami`
@@ -41,33 +40,34 @@ Configure Jenkins
 3. Add permission to the docker socket: sudo chmod 666 /var/run/docker.sock
 
 4. create a dockerfile to install libvirt client on jenkins image (vi jenkins.dockerfile):
+   use the latest available version of Jenkins from https://hub.docker.com/r/jenkins/jenkins
 
    vi jenkins.dockerfile
 
    ```
-   FROM jenkins/jenkins:lts
+   FROM jenkins/jenkins:2.332.2
    USER root
    RUN apt-get update && apt-get install -y libvirt-clients libvirt-daemon-system
    USER jenkins
    ```
 
-5. Build the docker image: docker build . -t hck-ci/jenkins -f jenkins.dockerfile
+5. Build the docker image: docker build . -t hck-ci/jenkins:2.332.2 -f jenkins.dockerfile
 
-6. Run docker container (detached with auto restart): 
-   docker run -d --restart unless-stopped -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home hck-ci/jenkins
-   
+6. Run docker container (detached with auto restart):
+   docker run -d --restart unless-stopped -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home hck-ci/jenkins:2.332.2
+
 7. Find the container id: docker ps
 
 8. Open a shell inside the container with: docker exec -i -t <container_id> /bin/bash
 
-9. Create a new private key inside the container: ssh-keygen -t rsa
+9. Create a new private key inside the container: ssh-keygen -t ed25519 -C  "$(whoami)@$(hostname)"
 
-10. Copy the public key to the host: ssh-copy-id -i ~/.ssh/id_rsa user@host
+10. Copy the public key to the host: ssh-copy-id -i ~/.ssh/id_ed25519 user@host
     * If you can't ssh the host detach from container and run:
-    cat /var/lib/docker/volumes/jenkins_home/_data/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
-    
+    cat /var/lib/docker/volumes/jenkins_home/_data/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+
 11. Make sure you can SSH from container to host  and detach from container (ctrl-d):
-    ssh -l <host_username> <host> -i /var/jenkins_home/.ssh/id_rsa
+    ssh -l <host_username> <host> -i /var/jenkins_home/.ssh/id_ed25519
 
 12. Open a browser with server address and allocated port eg http://myserverip:8080,
 
@@ -81,12 +81,14 @@ Configure Jenkins
     * Rebuilder
 
 15. Make sure the machine has enough free space allocated: (This is needed on automatically provisioned machines):
+    ```
     # check free space and mappings
     df -h
 
     # Extending can be done on fedora LVM partitioning with:
     lvextend /dev/fedora/root -l+100%FREE
     xfs_growfs /
+    ```
 
 16. Copy your Windows drivers Build VM imagse to libvirt images dir located at: var/lib/libvirt/images
     cp win8.1_x64.qcow2 /var/lib/libvirt/images
@@ -140,7 +142,7 @@ Configure Jenkins
 
 20. Connect to the build_vm with VNC client: <ipaddress>:< 5900 + the_defined_port >
 
-21. Inside the slave VM download the slave agent: ```http://myserverip:8080/computer/build_vm/slave-agent.jnlp``` 
+21. Inside the slave VM download the slave agent: ```http://myserverip:8080/computer/build_vm/slave-agent.jnlp```
     (change to the name used when configuring slave instead of build_vm)
     * Make sure you can access the jenkins dasboard from hostname, if you can't you must change it in the jenkins configuration to the real ip before you download
 
@@ -171,7 +173,7 @@ Configure Jenkins
 
     sc stop jenkinsslave-c__
     sc delete jenkinsslave-c__
-    
+
 23. Now turn of vm and make sure you can run it and launch agent directly from Jenkins:
     Jenkins -> Build Excutor Status -> build_vm -> launch agent
 
@@ -190,8 +192,8 @@ Configure Jenkins
     chown -R jenkins:jenkins *
     * Load new jobs on jenkins with: Jenkins -> Manage Jenkins -> Reload Configuration from Disk
 
-GitHub Pull Request Builder
------------------------------
+## GitHub Pull Request Builder
+
 Install 'GitHub Pull Request Builder' (Manage Jenkins -> Manage Plugins -> Available -> check "GitHub Pull Request Builder" and click on "Install without restart" and after installation is finished, check "restart") in Jenkins and configure it as followed:
 
 Setup Pull request trigger configuration
@@ -220,8 +222,8 @@ Setup Pull request trigger for project
 
 * Below that on 'Trigger Setup' add 'Update commit status during build' and 'Build Status Messages' to make a custom text to show on github when updating.
 
-Storage related devices tests
------------------------------
+## Storage related devices tests
+
 Some devices has tests that requires to create additional partitions:
 https://docs.microsoft.com/en-us/windows-hardware/test/hlk/testref/file-system-testing-prerequisites
 
